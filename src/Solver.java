@@ -96,7 +96,7 @@ public class Solver {
      * @return
      */
     private static int[] ess(ArrayList<Integer> activityList, Instance instance, int maxMakespan) {
-    	int[] solution = new int[instance.n()];
+        int[] solution = new int[instance.n()];
         //initialize  
         int[][] ressourcesForEachPeriod = new int[instance.r()][maxMakespan];            
         for(int j=0; j<instance.r(); j++){
@@ -111,18 +111,26 @@ public class Solver {
             //get earliest start time if you only look at the predecessors             
             solution[j] = getEarliestStartTime(j, instance, solution);                            
                                
-            //schedule j by looking at ressourcesForEachPeriod to satisfy resource constraints at each time                                            
-            for(int k=0; k<instance.r(); k++){                                                   
-                int t = solution[j];
-                while(t != solution[j]+instance.processingTime[j]){
-                    while(ressourcesForEachPeriod[k][t] < instance.demands[j][k]){
-                        solution[j]++;  
-                        t=solution[j];                  
-                    }
-                    t++;
-                }                                                          
-            }
-                                                                                                            
+            //schedule j by looking at ressourcesForEachPeriod to satisfy resource constraints at each time  
+            boolean problem = true; 
+	        while(problem) { 
+	        	problem = false;
+            	for(int k=0; k<instance.r(); k++){                                                               			                
+	            	for(int t=solution[j]; t<solution[j]+instance.processingTime[j]; t++){
+	                	 if(ressourcesForEachPeriod[k][t]<instance.demands[j][k]) {
+	                		 problem = true;
+	                		 break;
+	                	 }
+	                }
+	            	
+	            	if(problem){
+	            		solution[j]++;
+	            	}
+	            	
+	            }
+	        }    
+            
+            
             //update resources
             for(int k=0; k<instance.r(); k++){
                 for(int t=solution[j]; t<solution[j]+instance.processingTime[j]; t++){
