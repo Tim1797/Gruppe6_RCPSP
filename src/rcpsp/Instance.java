@@ -1,4 +1,4 @@
-
+package rcpsp;
 
 /**
  * Single-mode RCPSP instance.
