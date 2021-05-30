@@ -52,9 +52,9 @@ public class Solver {
      * @param maxMakespan
      * @return set of solutions each represented as an array of start times
      */
-    private static int[][] createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, long seed, int maxMakespan){
+    private static ArrayList<int[]> createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, long seed, int maxMakespan){
                                       
-        int[][] population = new int [populationSize][numberOfJobs];
+        ArrayList<int[]> population = new ArrayList<int[]>();
         
         //create different start orders
         for(int i=0; i<populationSize; i++){   
@@ -74,6 +74,7 @@ public class Solver {
                     for(int v=0; v<instance.successors[u].length;v++){
                         if(startOrder.indexOf(u) > startOrder.indexOf(instance.successors[u][v])){
                             inOrder = false;
+                            //switch u with its successor
                             startOrder.set(startOrder.indexOf(u), instance.successors[u][v]);
                             startOrder.set(startOrder.indexOf(instance.successors[u][v]), u);
                         }                                             
@@ -81,7 +82,7 @@ public class Solver {
                 }
             }                       
             
-            population[i] = ess(startOrder, instance, maxMakespan);                                         
+            population.add(ess(startOrder, instance, maxMakespan));                                         
         }
                 
         return population;
@@ -105,23 +106,30 @@ public class Solver {
             }
         }
         
-        //ESS              
+        //ESS
         for(int j : activityList){                 
             //schedule job j
             //get earliest start time if you only look at the predecessors             
             solution[j] = getEarliestStartTime(j, instance, solution);                            
                                
             //schedule j by looking at ressourcesForEachPeriod to satisfy resource constraints at each time                                            
-            for(int k=0; k<instance.r(); k++){                                                   
-                int t = solution[j];
-                while(t != solution[j]+instance.processingTime[j]){
-                    while(ressourcesForEachPeriod[k][t] < instance.demands[j][k]){
-                        solution[j]++;  
-                        t=solution[j];                  
-                    }
-                    t++;
-                }                                                          
-            }
+            boolean problem = true; 
+	        while(problem) { 
+	        	problem = false;
+            	for(int k=0; k<instance.r(); k++){                                                               			                
+	            	for(int t=solution[j]; t<solution[j]+instance.processingTime[j]; t++){
+	                	 if(ressourcesForEachPeriod[k][t]<instance.demands[j][k]) {
+	                		 problem = true;
+	                		 break;
+	                	 }
+	                }
+	            	
+	            	if(problem){
+	            		solution[j]++;
+	            	}
+	            	
+	            }
+	        }  
                                                                                                             
             //update resources
             for(int k=0; k<instance.r(); k++){
@@ -179,12 +187,11 @@ public class Solver {
      * @param mother (solution
      * @return child created by crossover
      */
-    private static int[] crossover(int[] father, int[] mother, Instance instance, long seed, int maxMakespan) {
+    private static int[] crossover(int[] father, int[] mother, Instance instance, Random rand, int maxMakespan) {
     	
     	int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
     	int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
-    	
-    	Random rand = new Random(seed);
+    	    	
     	int crossoverPoint = rand.nextInt(instance.n());
     	ArrayList<Integer> childActivityList = new ArrayList();
     	
@@ -210,8 +217,44 @@ public class Solver {
      * @param solution
      * @return changed solution
      */
-    private static int[] mutation(int[] solution){
-        return solution;
+    private static int[] mutation(int[] solution, Instance instance, int probability, Random rand, int maxMakespan){
+    	    	
+    	if(rand.nextInt(100)<probability) {
+    		//do mutation
+    		int[]solActivityListArray = transformSolutionIntoActivityList(solution, maxMakespan);
+    		
+    		ArrayList<Integer>solActivityList = new ArrayList<Integer>();
+    		
+    		for(int i=0; i<solActivityListArray.length; i++){
+    			solActivityList.add(solActivityListArray[i]);
+    		}
+    		
+    		//find job with no predecessors
+	    	for(int j=0; j<instance.n(); j++){
+    			ArrayList<Integer> pred = new ArrayList<>();
+	            for(int i=0; i<instance.successors.length; i++){
+	                for(int p=0; p<instance.successors[i].length; p++){               
+	                    if(instance.successors[i][p] == j){
+	                        pred.add(i);                
+	                    }
+	                }              
+	            } 
+	            if(pred.size() == 0) {
+	            	//switch j and random other job
+	            	//find j in activity list
+	            	int index = solActivityList.indexOf(j);
+	            	int switchWith = rand.nextInt(instance.n());
+	            	solActivityList.add(index, solActivityList.get(switchWith));
+	            	solActivityList.add(switchWith,j);
+	            	
+	            	break;
+	            }
+	            
+	    	}
+	    	return ess(solActivityList, instance, maxMakespan);
+	    }
+    	
+    	return solution;
       
     }
 
@@ -221,8 +264,15 @@ public class Solver {
      * @param population
      * @return selection
      */
-    private static int[][] selection(int[][] population){
-        return population;
+    private static ArrayList<int[]> selection(ArrayList<int[]> population, int size){
+        ArrayList<int[]> reducedPopulation = new ArrayList<int[]>();
+    	
+        for(int i=0; i<size; i++) {
+        	reducedPopulation.add(population.get(i));
+        	
+        }
+    	
+    	return reducedPopulation;
         
     }
     
@@ -289,7 +339,7 @@ public class Solver {
     
 
     public static void main(String[] args) {
-                     
+    	            
         if (args.length != 4) {
             System.out.println("usage: java Solver <instance-path> <solution-path> <time-limit> <seed>");
             return;
@@ -299,6 +349,7 @@ public class Solver {
         final Instance instance = Io.readInstance(Paths.get(path));
         
         long seed = Long.parseLong(args[3]);
+        Random rand = new Random(seed); 
         long timeLimit = Long.parseLong(args[2]);
         long startTime = System.currentTimeMillis();
         
@@ -307,20 +358,35 @@ public class Solver {
             maxMakespan = maxMakespan + instance.processingTime[i];
         }
                       
-        int[][] population = createInitialPopulation(instance, instance.n(), 30, seed, maxMakespan);
+        ArrayList<int[]> population = createInitialPopulation(instance, instance.n(), 10, seed, maxMakespan);
         //stores the best solution inside the population
-        int[] bestSolution = new int [instance.n()];
+        
+        int[] bestSolution = population.get(0);         
         
         //execute as long as the time limit is not reached
         while((System.currentTimeMillis() - startTime)/1000 <= timeLimit){
-            bestSolution = population[0];
-            for(int i=0; i<population.length; i++){
-                if(makespan(population[i], instance) < makespan(bestSolution, instance)){
-                    bestSolution = population[i];               
+            
+        	//find best solution and store it
+            for(int i=0; i<population.size(); i++){
+                if(makespan(population.get(i), instance) < makespan(bestSolution, instance)){
+                    bestSolution = population.get(i);               
                 }            
             }
-            //stop if done earlier
-            break;           
+            //choose two parents randomly            
+        	int[] father = population.get(rand.nextInt(population.size()));
+        	int[] mother = population.get(rand.nextInt(population.size()));
+            
+        	int[]child = crossover(father, mother, instance, rand, maxMakespan);
+        	//call mutation operation
+        	mutation(child, instance, 10, rand, maxMakespan);       	
+        	population.add(child);
+        	
+      	
+        	//do selection
+        	if(population.size() > 100){        		
+        		population = selection(population, 50);         		
+        	}
+        	                      
         }
         
                 
