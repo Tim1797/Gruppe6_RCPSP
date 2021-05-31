@@ -210,9 +210,9 @@ public class Solver {
    * @param solution
    * @return changed solution
    */
-  private static void mutation(int[][] population, Instance instance) {
+  private static void mutation(int[][] population, Instance instance, int maxMakespan) {
     int popIndex = App.getRandom().nextInt(population.length);
-    int[] replacement = RandomMutation.mutate(population[popIndex], instance);
+    int[] replacement = RandomMutation.mutate(population[popIndex], instance, maxMakespan);
     if (replacement == null) {
       return;
     }
@@ -330,7 +330,7 @@ public class Solver {
       int[] output = doCrossover(population, instance, maxMakespan);
 
       // Mutate
-      mutation(population, instance);
+      mutation(population, instance, maxMakespan);
 
       // Elimination (Selection)
       selection(population, instance, output);
