@@ -5,7 +5,7 @@ import java.util.Arrays;
 
 
 public class RandomMutation {
-  private static final double Probability = 0.90;
+  private static final double Probability = 0.25;
 
   public static int[] mutate(int[] solution, Instance instance, int maxMakespan) {
    
