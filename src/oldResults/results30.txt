@@ -1,0 +1,5 @@
+	1	5	10	15	20	30
+/home/tim/Documents/workspace/RCPSP_6/j60/J6030_2.RCP	79.8	81.0	80.4	80.4	81.0	81.0	
+/home/tim/Documents/workspace/RCPSP_6/j120/X10_7.RCP	89.6	88.2	89.0	89.2	89.8	89.6	
+/home/tim/Documents/workspace/RCPSP_6/j120/X11_3.RCP	263.4	260.8	263.6	263.4	265.8	263.8	
+/home/tim/Documents/workspace/RCPSP_6/j120/X34_3.RCP	122.8	121.2	122.4	122.4	122.2	123.0	

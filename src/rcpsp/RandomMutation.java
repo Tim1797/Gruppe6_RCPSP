@@ -1,35 +1,45 @@
 package rcpsp;
 
 import java.util.Random;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 
 public class RandomMutation {
-  private static final double Probability = 0.90;
+  private static final double Probability = 0.40;
 
   public static int[] mutate(int[] solution, Instance instance, int maxMakespan) {
    
     Random rng = App.getRandom();
     if (rng.nextDouble() > Probability) {
-      return null;
+      return solution;
     }
-    
-    int[] tempSolution = Arrays.copyOf(solution, solution.length);
-    int randInt = rng.nextInt(100) + 1; //random number between 1 and 100
+   
+    int[] solActivityList = Solver.transformSolutionIntoActivityList(solution, maxMakespan); 
+    ArrayList<Integer> copy= new ArrayList<Integer>();
+    for(int i=0; i<solActivityList.length; i++) {
+    	copy.add(solActivityList[i]);
+    }
     
     boolean feasible = false;
-    while (!feasible) {
-        tempSolution = Arrays.copyOf(solution, solution.length);
-        //mutation point between 1 and n-1
-        int mutationPoint = rng.nextInt(instance.n() - 2) + 1;
-        int temp = tempSolution[mutationPoint];
-        tempSolution[mutationPoint] = tempSolution[mutationPoint + 1];
-        tempSolution[mutationPoint + 1] = temp;
-        feasible = Solver.checkSolution(tempSolution, instance);
+    int counter = 0;
+    while (!feasible && counter < 100) {        
+        int swapPoint1 = rng.nextInt(instance.n());     
+        int swapPoint2 = rng.nextInt(instance.n());
+        int temp1 = copy.get(swapPoint1);
+        int temp2 = copy.get(swapPoint2);
+	    copy.set(swapPoint1, temp2);
+	    copy.set(swapPoint2, temp1);
         
+        feasible = Solver.checkSolution(Solver.ess(copy, instance, maxMakespan), instance);
+        if(!feasible) {
+        	//swap back
+        	copy.set(swapPoint1, temp1);
+        	copy.set(swapPoint2, temp2);       	
+        }
+        counter++;
     }
-
-    return tempSolution;        
+    return Solver.ess(copy,instance, maxMakespan);       
 
   
   }

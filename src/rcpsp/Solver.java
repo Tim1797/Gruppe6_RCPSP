@@ -2,8 +2,11 @@ package rcpsp;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Random;
+
 
 
 /**
@@ -51,8 +54,8 @@ public class Solver {
    * @param maxMakespan
    * @return set of solutions each represented as an array of start times
    */
-  private static int[][] createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, long seed, int maxMakespan) {
-    int[][] population = new int[populationSize][numberOfJobs];
+  private static ArrayList<int[]> createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, long seed, int maxMakespan) {
+    ArrayList<int[]> population = new ArrayList<int[]>();
 
     //create different start orders
     for (int i = 0; i < populationSize; i++) {
@@ -60,7 +63,7 @@ public class Solver {
       for (int j = 0; j < numberOfJobs; j++) {
         startOrder.add(j);
       }
-      Collections.shuffle(startOrder);
+      Collections.shuffle(startOrder,App.getRandom());
 
       //make sure the precedence constraints are satisfied
       boolean inOrder = false;
@@ -77,7 +80,7 @@ public class Solver {
         }
       }
 
-      population[i] = ess(startOrder, instance, maxMakespan);
+      population.add(ess(startOrder, instance, maxMakespan));
     }
 
     return population;
@@ -90,7 +93,7 @@ public class Solver {
    * @param activityList
    * @return
    */
-  private static int[] ess(ArrayList<Integer> activityList, Instance instance, int maxMakespan) {
+  public static int[] ess(ArrayList<Integer> activityList, Instance instance, int maxMakespan) {
     int[] solution = new int[instance.n()];
     //initialize
     int[][] ressourcesForEachPeriod = new int[instance.r()][maxMakespan];
@@ -117,7 +120,6 @@ public class Solver {
               break;
             }
           }
-
           if (problem) {
             solution[j]++;
           }
@@ -142,7 +144,7 @@ public class Solver {
    * @param solution
    * @return solution
    */
-  private static int[] transformSolutionIntoActivityList(int[] solution, int maxMakespan) {
+  public static int[] transformSolutionIntoActivityList(int[] solution, int maxMakespan) {
     int[] activityList = new int[solution.length];
     int[] copy = new int[solution.length];
     System.arraycopy(solution, 0, copy, 0, solution.length);
@@ -168,23 +170,36 @@ public class Solver {
 
   }
 
-  private static int[] doCrossover(int[][] population, Instance instance, int maxMakespan) {
-    assert population.length >= 2;
-
+  private static int[] doCrossover(ArrayList<int[]> population, Instance instance, int maxMakespan) {
+    assert population.size() >= 2;
+    Random rand = App.getRandom();
     IntPair selection = TournamentSelection.getBest(population, instance);
-    int[] father = population[selection.a];
-    int[] mother = population[selection.b];
-    return crossover(father, mother, instance, maxMakespan);
+    int[] father = population.get(selection.a);
+    int[] mother = population.get(selection.b);
+    
+    int crossoverChoice = 1;
+   
+    if(crossoverChoice == 0) {
+    	return onePointCO(father, mother, instance, maxMakespan);
+    }
+    else if (crossoverChoice == 1) {
+    	return twoPointCO(father, mother, instance, maxMakespan);
+    }
+    else {
+    	return uniformCO(father, mother, instance, maxMakespan);
+    }
+    
+    
   }
 
   /**
    * Execute crossover operation using two parent solutions to get a different new solution
    *
    * @param father (solution)
-   * @param mother (solution
+   * @param mother (solution)
    * @return child created by crossover
    */
-  private static int[] crossover(int[] father, int[] mother, Instance instance, int maxMakespan) {
+  private static int[] onePointCO(int[] father, int[] mother, Instance instance, int maxMakespan) {
     int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
     int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
 
@@ -202,26 +217,82 @@ public class Solver {
     }
 
     return ess(childActivityList, instance, maxMakespan);
+  
   }
 
-  /**
-   * Change some aspect of the solution using specified probability
-   *
-   * @param solution
-   * @return changed solution
-   */
-  private static void mutation(int[][] population, Instance instance, int maxMakespan) {
-    int popIndex = App.getRandom().nextInt(population.length);
-    int[] replacement = RandomMutation.mutate(population[popIndex], instance, maxMakespan);
-    if (replacement == null) {
-      return;
-    }
-
-    IntPair details = TournamentSelection.getWorst(population, instance);
-    if (makespan(replacement, instance) < details.b) {
-      int indexToReplace = details.a;
-      population[indexToReplace] = replacement;
-    }
+  private static int[] twoPointCO(int[] father, int[] mother, Instance instance, int maxMakespan) {	  
+	  int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
+	  int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
+	  
+	  Random rand = App.getRandom();
+	  int firstPoint = rand.nextInt(instance.n()-1);	  
+	  int secondPoint = rand.nextInt(instance.n()-firstPoint+1)+ firstPoint;		  
+	  ArrayList<Integer>child= new ArrayList<>();
+	  
+	  for(int i=0;i<firstPoint;i++) {
+		  child.add(motherActivityList[i]);
+	  }
+	  for(int i=firstPoint; i<secondPoint; i++) {
+		  //fill with not used job number
+		  child.add(instance.n()+10);
+	  }
+	  for(int i=secondPoint;i<instance.n();i++) {
+		  child.add(motherActivityList[i]);
+	  }
+	  
+	  for(int i=firstPoint; i<secondPoint; i++) {	  
+		  for(int j=0;j<instance.n();j++) {
+			  if(!searchElement(child,fatherActivityList[j])) {
+				  child.set(i, fatherActivityList[j]);
+			  }				  
+		  }
+		  
+	  }
+	  
+	  //make sure the precedence constraints are met
+	  boolean inOrder = false;
+      while (!inOrder) {
+        inOrder = true;
+        for (int u = 0; u < instance.n(); u++) {
+          for (int v = 0; v < instance.successors[u].length; v++) {
+            if (child.indexOf(u) > child.indexOf(instance.successors[u][v])) {
+              inOrder = false;
+              child.set(child.indexOf(u), instance.successors[u][v]);
+              child.set(child.indexOf(instance.successors[u][v]), u);
+            }
+          }
+        }
+      }     
+	  return ess(child, instance, maxMakespan);
+  }
+  
+  private static int[] uniformCO(int[] father, int[] mother, Instance instance, int maxMakespan) {
+	  int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
+	  int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
+	  
+	  Random rand = App.getRandom();
+	  
+	  ArrayList<Integer>child= new ArrayList<>();
+	  
+	
+	  for(int i=0; i<instance.n(); i++) {		  
+		  if(rand.nextInt(2) == 0) {
+			  for(int j=0; j<instance.n();j++) {
+				  if(!searchElement(child,fatherActivityList[j])) {
+					  child.add(fatherActivityList[j]);
+				  }				  
+			  }			  
+		  }
+		  else {
+			  for(int j=0; j<instance.n();j++) {
+				  if(!searchElement(child,motherActivityList[j])) {
+					  child.add(motherActivityList[j]);
+				  }				  
+			  }	
+		  }		  
+	  }
+	
+	  return ess(child, instance, maxMakespan);
   }
 
   /**
@@ -230,10 +301,18 @@ public class Solver {
    * @param population
    * @return selection
    */
-  private static void selection(int[][] population, Instance instance, int[] replacement) {
-    // TODO: We should use a vector instead to replace multiple entries w/o creating a copy.
-    int indexToReplace = TournamentSelection.getWorst(population, instance).a;
-    population[indexToReplace] = replacement;
+  private static void selection(ArrayList<int[]> population, Instance instance) {     
+	  Collections.sort(population,new Comparator<int[]>() {
+		  public int compare(int[] sol1, int[] sol2) {
+			  int makespanSol1 = makespan(sol1, instance);
+			  int makespanSol2 = makespan(sol2, instance);
+			  return makespanSol2 - makespanSol1;			  
+		  }		  
+	  });
+	  
+	  for(int i=0; i<population.size()/2;i++) {		
+    	population.remove(i);   	
+    }
   }
 
   /**
@@ -290,13 +369,13 @@ public class Solver {
   }
 
 
-  private static int[] pickBestSolution(int[][] population, Instance instance) {
-    int[] bestSolution = population[0];
+  private static int[] pickBestSolution(ArrayList<int[]>population, Instance instance) {
+    int[] bestSolution = population.get(0);
     int bestFitness = Fitness.get(bestSolution, instance);
-    for (int i = 1; i < population.length; i++) {
-      int currFitness = makespan(population[i], instance);
+    for (int i = 1; i < population.size(); i++) {
+      int currFitness = makespan(population.get(i), instance);
       if (currFitness < bestFitness) {
-        bestSolution = population[i];
+        bestSolution = population.get(i);
         bestFitness = currFitness;
       }
     }
@@ -313,6 +392,7 @@ public class Solver {
     final Instance instance = Io.readInstance(Paths.get(path));
 
     long seed = Long.parseLong(args[3]);
+    int sizeOfInitialPop = 30;
     long timeLimit = Long.parseLong(args[2]);
     long startTime = System.currentTimeMillis();
     App.init(seed);
@@ -322,18 +402,19 @@ public class Solver {
       maxMakespan += instance.processingTime[i];
     }
 
-    int[][] population = createInitialPopulation(instance, instance.n(), 30, seed, maxMakespan);
-
+    ArrayList<int[]>population = createInitialPopulation(instance, instance.n(), sizeOfInitialPop, seed, maxMakespan);
     // execute as long as the time limit is not reached
     while ((System.currentTimeMillis() - startTime) / 1000 <= timeLimit) {
       // Crossover
-      int[] output = doCrossover(population, instance, maxMakespan);
+      int[] child = doCrossover(population, instance, maxMakespan);
 
       // Mutate
-      mutation(population, instance, maxMakespan);
-
+      child = RandomMutation.mutate(child, instance, maxMakespan);
+      population.add(child);
       // Elimination (Selection)
-      selection(population, instance, output);
+      if(population.size()>4*sizeOfInitialPop) {
+    	  selection(population, instance);
+      }   
     }
 
     int[] bestSolution = pickBestSolution(population, instance);

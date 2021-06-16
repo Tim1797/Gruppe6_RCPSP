@@ -22,14 +22,14 @@ public class TournamentSelection {
   }
 
   /// Returns the best and second best solution based on a fixed tournament.
-  public static IntPair getBest(int[][] population, Instance instance) {
+  public static IntPair getBest(ArrayList<int[]> population, Instance instance) {
     int bestFitness = Integer.MAX_VALUE;
     int bestIndex = -1;
     int secondBestFitness = Integer.MAX_VALUE;
     int secondBestIndex = -1;
-    Set<Integer> indices = randomSample(population.length, TournamentBestSize);
+    Set<Integer> indices = randomSample(population.size(), TournamentBestSize);
     for (int index : indices) {
-      int fitness = Fitness.get(population[index], instance);
+      int fitness = Fitness.get(population.get(index), instance);
       if (fitness < bestFitness) {
         secondBestFitness = bestFitness;
         secondBestIndex = bestIndex;
@@ -44,12 +44,12 @@ public class TournamentSelection {
   }
 
   /// Returns the worst solution based on a fixed tournament.
-  public static IntPair getWorst(int[][] population, Instance instance) {
+  public static IntPair getWorst(ArrayList<int[]> population, Instance instance) {
     int worstFitness = Integer.MIN_VALUE;
     int worstIndex = -1;
-    Set<Integer> indices = randomSample(population.length, TournamentWorstSize);
+    Set<Integer> indices = randomSample(population.size(), TournamentWorstSize);
     for (int index : indices) {
-      int fitness = Fitness.get(population[index], instance);
+      int fitness = Fitness.get(population.get(index), instance);
       if (fitness > worstFitness) {
         worstFitness = fitness;
         worstIndex = index;
