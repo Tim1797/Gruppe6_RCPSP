@@ -17,9 +17,8 @@ public class RandomMutation {
       copy.add(solActivityList[i]);
     }
 
-    boolean feasible = false;
     int counter = 0;
-    while (!feasible && counter < 100) {
+    while (counter < 100) {
       int swapPoint1 = rng.nextInt(instance.n());
       int swapPoint2 = rng.nextInt(instance.n());
       int temp1 = copy.get(swapPoint1);
@@ -27,14 +26,16 @@ public class RandomMutation {
       copy.set(swapPoint1, temp2);
       copy.set(swapPoint2, temp1);
 
-      feasible = Solver.checkSolution(Solver.ess(copy, instance, maxMakespan), instance);
-      if (!feasible) {
-        // swap back
-        copy.set(swapPoint1, temp1);
-        copy.set(swapPoint2, temp2);
+      Solution newSolution = Solver.ess(copy, instance, maxMakespan);
+      if (Solver.checkSolution(newSolution, instance)) {
+        return newSolution;
       }
+
+      // swap back
+      copy.set(swapPoint1, temp1);
+      copy.set(swapPoint2, temp2);
       ++counter;
     }
-    return Solver.ess(copy, instance, maxMakespan);
+    return solution;
   }
 }

@@ -7,7 +7,7 @@ import java.util.*;
  * Solver for the RCPSP. Solves it by using genetic algorithm
  **/
 public class Solver {
-  private static Map<Integer, ArrayList<Integer>> predecessorCache = new HashMap<>();
+  private static final Map<Integer, ArrayList<Integer>> predecessorCache = new HashMap<>();
 
   /**
    * Method calculates the earlist starttime of a job by
