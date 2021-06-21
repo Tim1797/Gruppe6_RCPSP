@@ -1,45 +1,48 @@
 package rcpsp;
 
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Solver for the RCPSP. Solves it by using genetic algorithm
  **/
 public class Solver {
+  private static Map<Integer, ArrayList<Integer>> predecessorCache = new HashMap<>();
 
   /**
    * Method calculates the earlist starttime of a job by
    * looking at the precedence constraints
    *
-   * @param j
+   * @param jobNr
    * @param instance
    * @param solution
    * @return earliest start time of job i
    */
-  private static int getEarliestStartTime(int j, Instance instance, Solution solution) {
-    int max = 0;
-    //find predecessors of j
-    ArrayListEx<Integer> pred = new ArrayListEx<>(3);
-    for (int i = 0; i < instance.successors.length; ++i) {
-      for (int p = 0; p < instance.successors[i].length; ++p) {
-        if (instance.successors[i][p] == j) {
-          pred.add(i);
+  private static int getEarliestStartTime(int jobNr, Instance instance, Solution solution) {
+    ArrayList<Integer> pred = predecessorCache.get(jobNr);
+    if (pred == null) {
+      // find predecessors of j
+      pred = new ArrayList<>(8);
+      for (int i = 0; i < instance.successors.length; ++i) {
+        for (int p = 0; p < instance.successors[i].length; ++p) {
+          if (instance.successors[i][p] == jobNr) {
+            pred.add(i);
+          }
         }
       }
+      predecessorCache.put(jobNr, pred);
     }
-    //get the max start time of all predecessors of j
+
+    // get the max start time of all predecessors of j
+    int max = 0;
     for (int i = 0; i < pred.size(); ++i) {
-      if (solution.get(pred.get(i)) + instance.processingTime[pred.get(i)] > max) {
-        max = solution.get(pred.get(i)) + instance.processingTime[pred.get(i)];
+      int curr = solution.get(pred.get(i)) + instance.processingTime[pred.get(i)];
+      if (curr > max) {
+        max = curr;
       }
     }
     return max;
   }
-
 
   /**
    * Creates initial population by executing Earliest Start Schedule with different activity orders
@@ -51,17 +54,17 @@ public class Solver {
    * @return set of solutions each represented as an array of start times
    */
   private static ArrayListEx<Solution> createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, int maxMakespan) {
-    ArrayListEx<Solution> population = new ArrayListEx<>(populationSize);
+    var population = new ArrayListEx<Solution>(populationSize);
 
-    //create different start orders
+    // create different start orders
     for (int i = 0; i < populationSize; ++i) {
-      ArrayListEx<Integer> startOrder = new ArrayListEx<>(numberOfJobs);
+      var startOrder = new ArrayListEx<Integer>(numberOfJobs);
       for (int j = 0; j < numberOfJobs; ++j) {
         startOrder.add(j);
       }
       Collections.shuffle(startOrder, App.getRandom());
 
-      //make sure the precedence constraints are satisfied
+      // make sure the precedence constraints are satisfied
       boolean inOrder = false;
       while (!inOrder) {
         inOrder = true;
@@ -109,8 +112,8 @@ public class Solver {
       boolean problem = true;
       while (problem) {
         problem = false;
-        for (int k = 0; k < instance.r(); k++) {
-          for (int t = solution.get(j); t < solution.get(j) + instance.processingTime[j]; t++) {
+        for (int k = 0; k < instance.r(); ++k) {
+          for (int t = solution.get(j); t < solution.get(j) + instance.processingTime[j]; ++t) {
             if (resourcesForEachPeriod[k][t] < instance.demands[j][k]) {
               problem = true;
               break;
@@ -132,7 +135,6 @@ public class Solver {
     }
     return solution;
   }
-
 
   /**
    * Transforms the solution, which holds the start times of each job into
@@ -161,7 +163,6 @@ public class Solver {
 
   private static Solution doCrossover(ArrayListEx<Solution> population, Instance instance, int maxMakespan) {
     assert population.size() >= 2;
-    Random rand = App.getRandom();
     IntPair selection = TournamentSelection.getBest(population, instance);
     Solution father = population.get(selection.a);
     Solution mother = population.get(selection.b);
