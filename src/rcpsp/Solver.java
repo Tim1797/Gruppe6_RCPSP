@@ -2,7 +2,9 @@ package rcpsp;
 
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Solver for the RCPSP. Solves it by using genetic algorithm
@@ -18,7 +20,7 @@ public class Solver {
    * @param solution
    * @return earliest start time of job i
    */
-  private static int getEarliestStartTime(int j, Instance instance, int[] solution) {
+  private static int getEarliestStartTime(int j, Instance instance, Solution solution) {
     int max = 0;
     //find predecessors of j
     ArrayListEx<Integer> pred = new ArrayListEx<>(3);
@@ -31,8 +33,8 @@ public class Solver {
     }
     //get the max start time of all predecessors of j
     for (int i = 0; i < pred.size(); ++i) {
-      if (solution[pred.get(i)] + instance.processingTime[pred.get(i)] > max) {
-        max = solution[pred.get(i)] + instance.processingTime[pred.get(i)];
+      if (solution.get(pred.get(i)) + instance.processingTime[pred.get(i)] > max) {
+        max = solution.get(pred.get(i)) + instance.processingTime[pred.get(i)];
       }
     }
     return max;
@@ -45,12 +47,11 @@ public class Solver {
    * @param instance
    * @param numberOfJobs
    * @param populationSize
-   * @param seed
    * @param maxMakespan
    * @return set of solutions each represented as an array of start times
    */
-  private static ArrayListEx<int[]> createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, long seed, int maxMakespan) {
-    ArrayListEx<int[]> population = new ArrayListEx<>(populationSize);
+  private static ArrayListEx<Solution> createInitialPopulation(Instance instance, int numberOfJobs, int populationSize, int maxMakespan) {
+    ArrayListEx<Solution> population = new ArrayListEx<>(populationSize);
 
     //create different start orders
     for (int i = 0; i < populationSize; ++i) {
@@ -87,9 +88,10 @@ public class Solver {
    * @param activityList
    * @return
    */
-  public static int[] ess(ArrayListEx<Integer> activityList, Instance instance, int maxMakespan) {
-    int[] solution = new int[instance.n()];
-    //initialize
+  public static Solution ess(ArrayListEx<Integer> activityList, Instance instance, int maxMakespan) {
+    Solution solution = new Solution(instance.n(), instance);
+
+    // initialize
     int[][] resourcesForEachPeriod = new int[instance.r()][maxMakespan];
     for (int j = 0; j < instance.r(); j++) {
       for (int p = 0; p < maxMakespan; p++) {
@@ -97,32 +99,33 @@ public class Solver {
       }
     }
 
-    //ESS
+    // ESS
     for (int j : activityList) {
-      //schedule job j
-      //get earliest start time if you only look at the predecessors
-      solution[j] = getEarliestStartTime(j, instance, solution);
+      // schedule job j
+      // get earliest start time if you only look at the predecessors
+      solution.set(j, getEarliestStartTime(j, instance, solution));
 
-      //schedule j by looking at resourcesForEachPeriod to satisfy resource constraints at each time
+      // schedule j by looking at resourcesForEachPeriod to satisfy resource constraints at each time
       boolean problem = true;
       while (problem) {
         problem = false;
         for (int k = 0; k < instance.r(); k++) {
-          for (int t = solution[j]; t < solution[j] + instance.processingTime[j]; t++) {
+          for (int t = solution.get(j); t < solution.get(j) + instance.processingTime[j]; t++) {
             if (resourcesForEachPeriod[k][t] < instance.demands[j][k]) {
               problem = true;
               break;
             }
           }
           if (problem) {
-            solution[j]++;
+            int val = solution.get(j);
+            solution.set(j, ++val);
           }
         }
       }
 
-      //update resources
+      // update resources
       for (int k = 0; k < instance.r(); k++) {
-        for (int t = solution[j]; t < solution[j] + instance.processingTime[j]; t++) {
+        for (int t = solution.get(j); t < solution.get(j) + instance.processingTime[j]; t++) {
           resourcesForEachPeriod[k][t] = resourcesForEachPeriod[k][t] - instance.demands[j][k];
         }
       }
@@ -138,14 +141,14 @@ public class Solver {
    * @param solution
    * @return solution
    */
-  public static int[] transformSolutionIntoActivityList(int[] solution, int maxMakespan) {
-    int[] activityList = new int[solution.length];
-    int[] copy = new int[solution.length];
-    System.arraycopy(solution, 0, copy, 0, solution.length);
+  public static int[] transformSolutionIntoActivityList(Solution solution, int maxMakespan) {
+    int[] copy = new int[solution.size()];
+    System.arraycopy(solution.getDataUnsafe(), 0, copy, 0, solution.size());
 
-    for (int i = 0; i < copy.length; i++) {
+    int[] activityList = new int[solution.size()];
+    for (int i = 0; i < copy.length; ++i) {
       int minIndex = 0;
-      for (int j = 0; j < copy.length; j++) {
+      for (int j = 0; j < copy.length; ++j) {
         if (copy[j] < copy[minIndex]) {
           minIndex = j;
         }
@@ -156,20 +159,12 @@ public class Solver {
     return activityList;
   }
 
-  private static boolean searchElement(ArrayListEx<Integer> activityList, int element) {
-    for (int i = 0; i < activityList.size(); i++) {
-      if (activityList.get(i) == element) return true;
-    }
-    return false;
-
-  }
-
-  private static int[] doCrossover(ArrayListEx<int[]> population, Instance instance, int maxMakespan) {
+  private static Solution doCrossover(ArrayListEx<Solution> population, Instance instance, int maxMakespan) {
     assert population.size() >= 2;
     Random rand = App.getRandom();
     IntPair selection = TournamentSelection.getBest(population, instance);
-    int[] father = population.get(selection.a);
-    int[] mother = population.get(selection.b);
+    Solution father = population.get(selection.a);
+    Solution mother = population.get(selection.b);
 
     final int crossoverChoice = 1;
 
@@ -189,60 +184,72 @@ public class Solver {
    * @param mother (solution)
    * @return child created by crossover
    */
-  private static int[] onePointCO(int[] father, int[] mother, Instance instance, int maxMakespan) {
+  private static Solution onePointCO(Solution father, Solution mother, Instance instance, int maxMakespan) {
     int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
     int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
 
     Random rand = App.getRandom();
     int crossoverPoint = rand.nextInt(instance.n());
-    var childActivityList = new ArrayListEx<Integer>(instance.n());
+    var child = new ArrayListEx<Integer>(instance.n());
+    var childCache = new HashSet<Integer>(crossoverPoint);
 
-    for (int i = 0; i < crossoverPoint; i++) {
-      childActivityList.add(fatherActivityList[i]);
+    for (int i = 0; i < crossoverPoint; ++i) {
+      int value = fatherActivityList[i];
+      child.add(value);
+      childCache.add(value);
     }
-    for (int i = 0; i < instance.n(); i++) {
-      if (!searchElement(childActivityList, motherActivityList[i])) {
-        childActivityList.add(motherActivityList[i]);
+    for (int i = 0; i < instance.n(); ++i) {
+      if (!childCache.contains(motherActivityList[i])) {
+        int value = motherActivityList[i];
+        child.add(value);
+        childCache.add(value);
       }
     }
-    return ess(childActivityList, instance, maxMakespan);
+    return ess(child, instance, maxMakespan);
   }
 
-  private static int[] twoPointCO(int[] father, int[] mother, Instance instance, int maxMakespan) {
+  private static Solution twoPointCO(Solution father, Solution mother, Instance instance, int maxMakespan) {
     int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
     int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
 
     Random rand = App.getRandom();
     int firstPoint = rand.nextInt(instance.n() - 1);
     int secondPoint = rand.nextInt(instance.n() - firstPoint + 1) + firstPoint;
-    ArrayListEx<Integer> child = new ArrayListEx<>(instance.n());
+    var child = new ArrayListEx<Integer>(instance.n());
+    var childCache = new HashSet<Integer>(instance.n());
+    int magicNumber = instance.n() + 10;
 
-    for (int i = 0; i < firstPoint; i++) {
+    for (int i = 0; i < firstPoint; ++i) {
       child.add(motherActivityList[i]);
+      childCache.add(motherActivityList[i]);
     }
-    for (int i = firstPoint; i < secondPoint; i++) {
-      //fill with not used job number
-      child.add(instance.n() + 10);
+    for (int i = firstPoint; i < secondPoint; ++i) {
+      // fill with not used job number
+      child.add(magicNumber);
     }
-    for (int i = secondPoint; i < instance.n(); i++) {
+    for (int i = secondPoint; i < instance.n(); ++i) {
       child.add(motherActivityList[i]);
+      childCache.add(motherActivityList[i]);
     }
 
-    for (int i = firstPoint; i < secondPoint; i++) {
+    for (int i = firstPoint; i < secondPoint; ++i) {
       for (int j = 0; j < instance.n(); j++) {
-        if (!searchElement(child, fatherActivityList[j])) {
-          child.set(i, fatherActivityList[j]);
+        if (!childCache.contains(fatherActivityList[j])) {
+          childCache.remove(child.get(i));
+
+          int value = fatherActivityList[j];
+          child.set(i, value);
+          childCache.add(value);
         }
       }
-
     }
 
-    //make sure the precedence constraints are met
+    // make sure the precedence constraints are met
     boolean inOrder = false;
     while (!inOrder) {
       inOrder = true;
-      for (int u = 0; u < instance.n(); u++) {
-        for (int v = 0; v < instance.successors[u].length; v++) {
+      for (int u = 0; u < instance.n(); ++u) {
+        for (int v = 0; v < instance.successors[u].length; ++v) {
           if (child.indexOf(u) > child.indexOf(instance.successors[u][v])) {
             inOrder = false;
             child.set(child.indexOf(u), instance.successors[u][v]);
@@ -254,24 +261,29 @@ public class Solver {
     return ess(child, instance, maxMakespan);
   }
 
-  private static int[] uniformCO(int[] father, int[] mother, Instance instance, int maxMakespan) {
+  private static Solution uniformCO(Solution father, Solution mother, Instance instance, int maxMakespan) {
     int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
     int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
 
     Random rand = App.getRandom();
-    ArrayListEx<Integer> child = new ArrayListEx<>(instance.n());
+    var child = new ArrayListEx<Integer>(instance.n());
+    var childCache = new HashSet<Integer>(instance.n());
 
     for (int i = 0; i < instance.n(); i++) {
       if (rand.nextInt(2) == 0) {
         for (int j = 0; j < instance.n(); j++) {
-          if (!searchElement(child, fatherActivityList[j])) {
-            child.add(fatherActivityList[j]);
+          if (!childCache.contains(fatherActivityList[j])) {
+            int value = fatherActivityList[j];
+            child.add(value);
+            childCache.add(value);
           }
         }
       } else {
         for (int j = 0; j < instance.n(); j++) {
-          if (!searchElement(child, motherActivityList[j])) {
-            child.add(motherActivityList[j]);
+          if (!childCache.contains(motherActivityList[j])) {
+            int value = motherActivityList[j];
+            child.add(value);
+            childCache.add(value);
           }
         }
       }
@@ -285,29 +297,16 @@ public class Solver {
    * @param population
    * @return selection
    */
-  private static void selection(ArrayListEx<int[]> population, Instance instance) {
+  private static void selection(ArrayListEx<Solution> population) {
     population.sort((sol1, sol2) -> {
-      int makespanSol1 = makespan(sol1, instance);
-      int makespanSol2 = makespan(sol2, instance);
+      int makespanSol1 = sol1.getMakespan();
+      int makespanSol2 = sol2.getMakespan();
       return makespanSol2 - makespanSol1;
     });
 
     int upperBound = population.size() / 2;
     population.removeRange(0, upperBound);
   }
-
-  /**
-   * Method calculates the makespan of the solution by searching for the
-   * maximum end time of a job
-   *
-   * @param solution
-   * @param instance
-   * @return makespan
-   */
-  private static int makespan(int[] solution, Instance instance) {
-    return Fitness.get(solution, instance);
-  }
-
 
   /**
    * Method checks of a created solution is valid by checking the precedence constraints
@@ -317,31 +316,33 @@ public class Solver {
    * @param instance
    * @return
    */
-  public static boolean checkSolution(int[] solution, Instance instance) {
+  public static boolean checkSolution(Solution solution, Instance instance) {
     int numberOfJobs = instance.n();
-    int solutionMakespan = makespan(solution, instance);
+    int solutionMakespan = solution.getMakespan();
 
-    //initialize
+    // initialize
     int[][] resourcesForEachPeriod = new int[instance.r()][solutionMakespan];
 
-    for (int j = 0; j < instance.r(); j++) {
-      for (int p = 0; p < solutionMakespan; p++) {
+    for (int j = 0; j < instance.r(); ++j) {
+      for (int p = 0; p < solutionMakespan; ++p) {
         resourcesForEachPeriod[j][p] = instance.resources[j];
       }
     }
-    //sub all demands in the solution and check resource constraints
-    for (int i = 0; i < numberOfJobs; i++) {
-      for (int j = solution[i]; j < solution[i] + instance.processingTime[i]; j++) {
-        for (int k = 0; k < instance.r(); k++) {
+    // sub all demands in the solution and check resource constraints
+    for (int i = 0; i < numberOfJobs; ++i) {
+      for (int j = solution.get(i); j < solution.get(i) + instance.processingTime[i]; ++j) {
+        for (int k = 0; k < instance.r(); ++k) {
           resourcesForEachPeriod[k][j] = resourcesForEachPeriod[k][j] - instance.demands[i][k];
-          if (resourcesForEachPeriod[k][j] < 0) return false;
+          if (resourcesForEachPeriod[k][j] < 0) {
+            return false;
+          }
         }
       }
     }
-    //check successor constraints
-    for (int i = 0; i < numberOfJobs; i++) {
-      for (int j = 0; j < instance.successors[i].length; j++) {
-        if (solution[i] + instance.processingTime[i] > solution[instance.successors[i][j]]) {
+    // check successor constraints
+    for (int i = 0; i < numberOfJobs; ++i) {
+      for (int j = 0; j < instance.successors[i].length; ++j) {
+        if (solution.get(i) + instance.processingTime[i] > solution.get(instance.successors[i][j])) {
           return false;
         }
       }
@@ -349,12 +350,11 @@ public class Solver {
     return true;
   }
 
-
-  private static int[] pickBestSolution(ArrayListEx<int[]> population, Instance instance) {
-    int[] bestSolution = population.get(0);
-    int bestFitness = Fitness.get(bestSolution, instance);
-    for (int i = 1; i < population.size(); i++) {
-      int currFitness = makespan(population.get(i), instance);
+  private static Solution pickBestSolution(ArrayListEx<Solution> population) {
+    Solution bestSolution = population.get(0);
+    int bestFitness = bestSolution.getMakespan();
+    for (int i = 1; i < population.size(); ++i) {
+      int currFitness = population.get(i).getMakespan();
       if (currFitness < bestFitness) {
         bestSolution = population.get(i);
         bestFitness = currFitness;
@@ -372,24 +372,25 @@ public class Solver {
     final String path = args[0];
     final Instance instance = Io.readInstance(Paths.get(path));
 
-    long seed = Long.parseLong(args[3]);
-    int sizeOfInitialPop = 30;
-    long timeLimit = Long.parseLong(args[2]);
-    long startTime = System.currentTimeMillis();
+    final long seed = Long.parseLong(args[3]);
+    final int sizeOfInitialPop = 30;
+    final long timeLimit = Long.parseLong(args[2]) * 1000;
+    final long startTime = System.currentTimeMillis();
     App.init(seed);
 
     int maxMakespan = 0;
-    for (int i = 0; i < instance.n(); i++) {
+    for (int i = 0; i < instance.n(); ++i) {
       maxMakespan += instance.processingTime[i];
     }
 
     int debugIterations = 0; // #DEBUG
 
-    ArrayListEx<int[]> population = createInitialPopulation(instance, instance.n(), sizeOfInitialPop, seed, maxMakespan);
+    ArrayListEx<Solution> population = createInitialPopulation(instance, instance.n(), sizeOfInitialPop, maxMakespan);
+
     // execute as long as the time limit is not reached
-    while ((System.currentTimeMillis() - startTime) / 1000 <= timeLimit) {
+    while ((System.currentTimeMillis() - startTime) <= timeLimit) {
       // Crossover
-      int[] child = doCrossover(population, instance, maxMakespan);
+      Solution child = doCrossover(population, instance, maxMakespan);
 
       // Mutate
       child = RandomMutation.mutate(child, instance, maxMakespan);
@@ -397,18 +398,18 @@ public class Solver {
 
       // Elimination (Selection)
       if (population.size() > 4 * sizeOfInitialPop) {
-        selection(population, instance);
+        selection(population);
       }
 
       ++debugIterations; // #DEBUG
     }
 
-    int[] bestSolution = pickBestSolution(population, instance);
+    Solution bestSolution = pickBestSolution(population);
     System.out.println("Valid: " + checkSolution(bestSolution, instance));
-    System.out.println("Makespan: " + makespan(bestSolution, instance));
+    System.out.println("Makespan: " + bestSolution.getMakespan());
 
     System.out.println("\nIterations: " + debugIterations); // #DEBUG
 
-    Io.writeSolution(bestSolution, Paths.get(args[1]));
+    Io.writeSolution(bestSolution.getDataUnsafe(), Paths.get(args[1]));
   }
 }
