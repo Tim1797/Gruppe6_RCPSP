@@ -18,7 +18,7 @@ public class RandomMutation {
     }
 
     int counter = 0;
-    while (counter < 100) {
+    while (counter < 60) {
       int swapPoint1 = rng.nextInt(instance.n());
       int swapPoint2 = rng.nextInt(instance.n());
       int temp1 = copy.get(swapPoint1);

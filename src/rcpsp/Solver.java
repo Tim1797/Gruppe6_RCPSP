@@ -1,6 +1,7 @@
 package rcpsp;
 
 import java.nio.file.Paths;
+import java.security.SecureRandom;
 import java.util.*;
 
 /**
@@ -22,7 +23,7 @@ public class Solver {
     ArrayList<Integer> pred = predecessorCache.get(jobNr);
     if (pred == null) {
       // find predecessors of j
-      pred = new ArrayList<>(8);
+      pred = new ArrayList<>(4);
       for (int i = 0; i < instance.successors.length; ++i) {
         for (int p = 0; p < instance.successors[i].length; ++p) {
           if (instance.successors[i][p] == jobNr) {
@@ -70,10 +71,12 @@ public class Solver {
         inOrder = true;
         for (int u = 0; u < numberOfJobs; ++u) {
           for (int v = 0; v < instance.successors[u].length; ++v) {
-            if (startOrder.indexOf(u) > startOrder.indexOf(instance.successors[u][v])) {
+            int indexU = startOrder.indexOf(u);
+            int indexSucc = startOrder.indexOf(instance.successors[u][v]);
+            if (indexU > indexSucc) {
               inOrder = false;
-              startOrder.set(startOrder.indexOf(u), instance.successors[u][v]);
-              startOrder.set(startOrder.indexOf(instance.successors[u][v]), u);
+              startOrder.set(indexU, instance.successors[u][v]);
+              startOrder.set(indexSucc, u);
             }
           }
         }
@@ -96,8 +99,8 @@ public class Solver {
 
     // initialize
     int[][] resourcesForEachPeriod = new int[instance.r()][maxMakespan];
-    for (int j = 0; j < instance.r(); j++) {
-      for (int p = 0; p < maxMakespan; p++) {
+    for (int j = 0; j < instance.r(); ++j) {
+      for (int p = 0; p < maxMakespan; ++p) {
         resourcesForEachPeriod[j][p] = instance.resources[j];
       }
     }
@@ -113,7 +116,8 @@ public class Solver {
       while (problem) {
         problem = false;
         for (int k = 0; k < instance.r(); ++k) {
-          for (int t = solution.get(j); t < solution.get(j) + instance.processingTime[j]; ++t) {
+          int limit = solution.get(j) + instance.processingTime[j];
+          for (int t = solution.get(j); t < limit; ++t) {
             if (resourcesForEachPeriod[k][t] < instance.demands[j][k]) {
               problem = true;
               break;
@@ -127,12 +131,16 @@ public class Solver {
       }
 
       // update resources
-      for (int k = 0; k < instance.r(); k++) {
-        for (int t = solution.get(j); t < solution.get(j) + instance.processingTime[j]; t++) {
-          resourcesForEachPeriod[k][t] = resourcesForEachPeriod[k][t] - instance.demands[j][k];
+      for (int k = 0; k < instance.r(); ++k) {
+        int limit = solution.get(j) + instance.processingTime[j];
+        for (int t = solution.get(j); t < limit; ++t) {
+          resourcesForEachPeriod[k][t] -= instance.demands[j][k];
         }
       }
     }
+
+
+
     return solution;
   }
 
@@ -234,7 +242,7 @@ public class Solver {
     }
 
     for (int i = firstPoint; i < secondPoint; ++i) {
-      for (int j = 0; j < instance.n(); j++) {
+      for (int j = 0; j < instance.n(); ++j) {
         if (!childCache.contains(fatherActivityList[j])) {
           childCache.remove(child.get(i));
 
@@ -250,12 +258,36 @@ public class Solver {
     while (!inOrder) {
       inOrder = true;
       for (int u = 0; u < instance.n(); ++u) {
-        for (int v = 0; v < instance.successors[u].length; ++v) {
-          if (child.indexOf(u) > child.indexOf(instance.successors[u][v])) {
-            inOrder = false;
-            child.set(child.indexOf(u), instance.successors[u][v]);
-            child.set(child.indexOf(instance.successors[u][v]), u);
+        int len = instance.successors[u].length;
+        for (int v = 0; v < len; ++v) {
+          // NB: Manually search both indices.
+          int indexU = -1;
+          int indexSucc = -1;
+          int succVal = instance.successors[u][v];
+          for (int i = 0; i < child.size(); ++i) {
+            int val = child.get(i);
+            if (val == u) {
+              indexU = i;
+              break;
+            } else if (val == succVal) {
+              indexSucc = i;
+            }
           }
+
+          if (indexSucc != -1) {
+            assert indexU != -1 && indexU > indexSucc;
+            inOrder = false;
+            child.set(indexU, succVal);
+            child.set(indexSucc, u);
+          }
+//          // Original code:
+//          int indexU = child.indexOf(u);
+//          int indexSucc = child.indexOf(instance.successors[u][v]);
+//          if (indexU > indexSucc) {
+//            inOrder = false;
+//            child.set(indexU, instance.successors[u][v]);
+//            child.set(indexSucc, u);
+//          }
         }
       }
     }
@@ -323,23 +355,25 @@ public class Solver {
 
     // initialize
     int[][] resourcesForEachPeriod = new int[instance.r()][solutionMakespan];
-
     for (int j = 0; j < instance.r(); ++j) {
       for (int p = 0; p < solutionMakespan; ++p) {
         resourcesForEachPeriod[j][p] = instance.resources[j];
       }
     }
+
     // sub all demands in the solution and check resource constraints
     for (int i = 0; i < numberOfJobs; ++i) {
-      for (int j = solution.get(i); j < solution.get(i) + instance.processingTime[i]; ++j) {
+      int limit = solution.get(i) + instance.processingTime[i];
+      for (int j = solution.get(i); j < limit; ++j) {
         for (int k = 0; k < instance.r(); ++k) {
-          resourcesForEachPeriod[k][j] = resourcesForEachPeriod[k][j] - instance.demands[i][k];
+          resourcesForEachPeriod[k][j] -= instance.demands[i][k];
           if (resourcesForEachPeriod[k][j] < 0) {
             return false;
           }
         }
       }
     }
+
     // check successor constraints
     for (int i = 0; i < numberOfJobs; ++i) {
       for (int j = 0; j < instance.successors[i].length; ++j) {
@@ -373,8 +407,9 @@ public class Solver {
     final String path = args[0];
     final Instance instance = Io.readInstance(Paths.get(path));
 
-    final long seed = Long.parseLong(args[3]);
+    final long seed = Long.parseLong(args[3]); // new SecureRandom().nextLong();
     final int sizeOfInitialPop = 30;
+    final int eliminationThreshold = 4 * sizeOfInitialPop;
     final long timeLimit = Long.parseLong(args[2]) * 1000;
     final long startTime = System.currentTimeMillis();
     App.init(seed);
@@ -398,7 +433,7 @@ public class Solver {
       population.add(child);
 
       // Elimination (Selection)
-      if (population.size() > 4 * sizeOfInitialPop) {
+      if (population.size() > eliminationThreshold) {
         selection(population);
       }
 
