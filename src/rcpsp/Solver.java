@@ -419,7 +419,7 @@ public class Solver {
       maxMakespan += instance.processingTime[i];
     }
 
-    int debugIterations = 0; // #DEBUG
+    // int debugIterations = 0; // #DEBUG
 
     ArrayListEx<Solution> population = createInitialPopulation(instance, instance.n(), sizeOfInitialPop, maxMakespan);
 
@@ -437,14 +437,14 @@ public class Solver {
         selection(population);
       }
 
-      ++debugIterations; // #DEBUG
+      // ++debugIterations; // #DEBUG
     }
 
     Solution bestSolution = pickBestSolution(population);
     System.out.println("Valid: " + checkSolution(bestSolution, instance));
     System.out.println("Makespan: " + bestSolution.getMakespan());
 
-    System.out.println("\nIterations: " + debugIterations); // #DEBUG
+    // System.out.println("\nIterations: " + debugIterations); // #DEBUG
 
     Io.writeSolution(bestSolution.getDataUnsafe(), Paths.get(args[1]));
   }
