@@ -169,13 +169,13 @@ public class Solver {
     return activityList;
   }
 
-  private static Solution doCrossover(ArrayListEx<Solution> population, Instance instance, int maxMakespan) {
+  private static Solution doCrossover(ArrayListEx<Solution> population, Instance instance, int maxMakespan, int crossoverChoice) {
     assert population.size() >= 2;
     IntPair selection = TournamentSelection.getBest(population, instance);
     Solution father = population.get(selection.a);
     Solution mother = population.get(selection.b);
 
-    final int crossoverChoice = 1;
+    // final int crossoverChoice = 1;
 
     if (crossoverChoice == 0) {
       return onePointCO(father, mother, instance, maxMakespan);
@@ -302,9 +302,9 @@ public class Solver {
     var child = new ArrayListEx<Integer>(instance.n());
     var childCache = new HashSet<Integer>(instance.n());
 
-    for (int i = 0; i < instance.n(); i++) {
-      if (rand.nextInt(2) == 0) {
-        for (int j = 0; j < instance.n(); j++) {
+    for (int i = 0; i < instance.n(); ++i) {
+      if (rand.nextBoolean()) {
+        for (int j = 0; j < instance.n(); ++j) {
           if (!childCache.contains(fatherActivityList[j])) {
             int value = fatherActivityList[j];
             child.add(value);
@@ -312,7 +312,7 @@ public class Solver {
           }
         }
       } else {
-        for (int j = 0; j < instance.n(); j++) {
+        for (int j = 0; j < instance.n(); ++j) {
           if (!childCache.contains(motherActivityList[j])) {
             int value = motherActivityList[j];
             child.add(value);
@@ -337,8 +337,27 @@ public class Solver {
       return makespanSol2 - makespanSol1;
     });
 
+    // Keep elitist solutions
     int upperBound = population.size() / 2;
     population.removeRange(0, upperBound);
+
+    // Remove duplicates
+    Random rng = App.getRandom();
+    var cache = new HashSet<Integer>();
+    for (int i = 0; i < population.size(); ++i) {
+      int h  = Arrays.hashCode(population.get(i).getDataUnsafe());
+      if (cache.contains(h)) {
+        if (population.size() > 2 && rng.nextDouble() > 0.2) {
+          population.remove(i);
+          --i;
+        }
+      } else {
+        cache.add(h);
+      }
+    }
+
+    // Redistribute
+    Collections.shuffle(population, rng);
   }
 
   /**
@@ -407,9 +426,9 @@ public class Solver {
     final String path = args[0];
     final Instance instance = Io.readInstance(Paths.get(path));
 
-    final long seed = Long.parseLong(args[3]); // new SecureRandom().nextLong();
+    final long seed = Long.parseLong(args[3]);
     final int sizeOfInitialPop = 30;
-    final int eliminationThreshold = 4 * sizeOfInitialPop;
+    final int eliminationThreshold = 10 * sizeOfInitialPop;
     final long timeLimit = Long.parseLong(args[2]) * 1000;
     final long startTime = System.currentTimeMillis();
     App.init(seed);
@@ -421,12 +440,18 @@ public class Solver {
 
     // int debugIterations = 0; // #DEBUG
 
+    Random rng = App.getRandom();
     ArrayListEx<Solution> population = createInitialPopulation(instance, instance.n(), sizeOfInitialPop, maxMakespan);
 
     // execute as long as the time limit is not reached
     while ((System.currentTimeMillis() - startTime) <= timeLimit) {
       // Crossover
-      Solution child = doCrossover(population, instance, maxMakespan);
+      Solution child = doCrossover(population, instance, maxMakespan, 1);
+
+      if (rng.nextDouble() > 0.8) {
+        Solution child2 = doCrossover(population, instance, maxMakespan, 2);
+        population.add(child2);
+      }
 
       // Mutate
       child = RandomMutation.mutate(child, instance, maxMakespan);
