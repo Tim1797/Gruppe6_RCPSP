@@ -448,7 +448,7 @@ public class Solver {
       // Crossover
       Solution child = doCrossover(population, instance, maxMakespan, 1);
 
-      if (rng.nextDouble() > 0.8) {
+      if (rng.nextDouble() > 0.9) {
         Solution child2 = doCrossover(population, instance, maxMakespan, 2);
         population.add(child2);
       }
