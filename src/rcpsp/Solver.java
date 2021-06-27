@@ -466,7 +466,7 @@ public class Solver {
     }
 
     Solution bestSolution = pickBestSolution(population);
-    System.out.println("Valid: " + checkSolution(bestSolution, instance));
+    // System.out.println("Valid: " + checkSolution(bestSolution, instance));
     System.out.println("Makespan: " + bestSolution.getMakespan());
 
     // System.out.println("\nIterations: " + debugIterations); // #DEBUG
