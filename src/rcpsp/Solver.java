@@ -126,6 +126,7 @@ public class Solver {
           if (problem) {
             int val = solution.get(j);
             solution.set(j, ++val);
+            break;
           }
         }
       }
