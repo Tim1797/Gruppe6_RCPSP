@@ -67,7 +67,7 @@ if __name__ == "__main__":
                     
                     outputDecode = output.stdout.decode('utf-8')
 
-                    makespan = (outputDecode.split("\n")[1]).split()[1]
+                    makespan = outputDecode.split()[1] #(outputDecode.split("\n")[1]).split()[1]
                     makespans.append(int(makespan))
                 
                 avg_makespan = round(np.average(makespans), 3)  
