@@ -106,26 +106,22 @@ public class Solver {
     }
 
     // ESS
-    for (int j : activityList) {
-      // schedule job j
-      // get earliest start time if you only look at the predecessors
-      solution.set(j, getEarliestStartTime(j, instance, solution));
+    for (int job : activityList) {
+      // schedule job by getting earliest start time if you only look at the predecessors
+      int startTime = getEarliestStartTime(job, instance, solution);
+      solution.set(job, startTime);
 
-      // schedule j by looking at resourcesForEachPeriod to satisfy resource constraints at each time
-      boolean problem = true;
-      while (problem) {
-        problem = false;
+      // schedule job by looking at resourcesForEachPeriod to satisfy resource constraints at each time
+      int limit = startTime + instance.processingTime[job];
+      for (int t = startTime; t < limit; ++t) {
         for (int k = 0; k < instance.r(); ++k) {
-          int limit = solution.get(j) + instance.processingTime[j];
-          for (int t = solution.get(j); t < limit; ++t) {
-            if (resourcesForEachPeriod[k][t] < instance.demands[j][k]) {
-              problem = true;
-              break;
-            }
-          }
-          if (problem) {
-            int val = solution.get(j);
-            solution.set(j, ++val);
+          if (resourcesForEachPeriod[k][t] < instance.demands[job][k]) {
+            ++startTime;
+            solution.set(job, startTime);
+
+            // update loop variables
+            ++limit;
+            t = Math.max(startTime, t) - 1;
             break;
           }
         }
@@ -133,15 +129,11 @@ public class Solver {
 
       // update resources
       for (int k = 0; k < instance.r(); ++k) {
-        int limit = solution.get(j) + instance.processingTime[j];
-        for (int t = solution.get(j); t < limit; ++t) {
-          resourcesForEachPeriod[k][t] -= instance.demands[j][k];
+        for (int t = startTime; t < limit; ++t) {
+          resourcesForEachPeriod[k][t] -= instance.demands[job][k];
         }
       }
     }
-
-
-
     return solution;
   }
 
