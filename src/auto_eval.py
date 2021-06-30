@@ -29,39 +29,55 @@ if __name__ == "__main__":
     print("Found configs: ", len(files))
     
     f = open("results.txt", "w") 
+    
     for config_file in files:
         print("CONFIG:", config_file)
 
         list_benchmark_files = None
+        list_seeds = None
         list_program_calls = None
 
         import json
         with open(config_file) as json_file:
             data = json.load(json_file)
             list_benchmark_files = data['benchmark_files']
+            list_seeds = data['seeds']
             list_program_calls = data['program_calls']
 
         data_time = []
         data_count = []
-
+               
         for i, x in enumerate(list_benchmark_files):
             temp_time = []
             temp_count = []
-            f.write(x + "\n")           
+                     
+            parts = x.split("/") 
+            instanceName = parts[-1].split(".")[0]    
+            f.write(instanceName + "\t")     
+            
             for j, y in enumerate(list_program_calls):
                 makespans = []
-                time = (y.replace("%inputfile%", x)).split()[4]
-                f.write(time + " ")                                
+                #time = (y.replace("%inputfile%", x)).split()[4]
+                #f.write(time + " ")                                
                 for o in range(repeat):
-                    print(y.replace("%inputfile%", x))
-                    
-                    output = subprocess.run((y.replace("%inputfile%", x)).replace("%seed%", str(o*7+i*3+j*5)), stdout=subprocess.PIPE, shell=True)
+                    currSeet = list_seeds[i]
+                    print(y.replace("%inputfile%", x).replace("%seed%", str(currSeet)))
+
+                    output = subprocess.run((y.replace("%inputfile%", x)).replace("%seed%", str(currSeet)), stdout=subprocess.PIPE, shell=True)
                     
                     outputDecode = output.stdout.decode('utf-8')
-                    makespan = (outputDecode.split("\n")[1]).split()[1]
+
+                    makespan = outputDecode.split()[1] #(outputDecode.split("\n")[1]).split()[1]
                     makespans.append(int(makespan))
                 
-                avg_makespan = round(np.average(makespans), 2)  
-                f.write(str(avg_makespan) + "\n")            
-                                                                  
+                avg_makespan = round(np.average(makespans), 3)  
+                
+                
+                f.write(str(avg_makespan) + "\n")   
+                                                                               
         f.close()
+        
+        
+        
+        
+        
