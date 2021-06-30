@@ -1,7 +1,6 @@
 package rcpsp;
 
 import java.nio.file.Paths;
-import java.security.SecureRandom;
 import java.util.*;
 
 /**
@@ -81,7 +80,6 @@ public class Solver {
           }
         }
       }
-
       population.add(ess(startOrder, instance, maxMakespan));
     }
     return population;
@@ -144,20 +142,14 @@ public class Solver {
    * @param solution
    * @return solution
    */
-  public static int[] transformSolutionIntoActivityList(Solution solution, int maxMakespan) {
-    int[] copy = new int[solution.size()];
-    System.arraycopy(solution.getDataUnsafe(), 0, copy, 0, solution.size());
-
+  public static int[] transformSolutionIntoActivityList(Solution solution) {
     int[] activityList = new int[solution.size()];
-    for (int i = 0; i < copy.length; ++i) {
-      int minIndex = 0;
-      for (int j = 0; j < copy.length; ++j) {
-        if (copy[j] < copy[minIndex]) {
-          minIndex = j;
-        }
-      }
-      activityList[i] = minIndex;
-      copy[minIndex] = maxMakespan;
+    var heap = new PriorityQueue<IntPair>(solution.size(), Comparator.comparingInt(i -> i.b));
+    for (int i = 0; i < solution.size(); ++i) {
+      heap.add(new IntPair(i, solution.get(i)));
+    }
+    for (int i = 0; i < solution.size(); ++i) {
+      activityList[i] = heap.remove().a;
     }
     return activityList;
   }
@@ -167,8 +159,6 @@ public class Solver {
     IntPair selection = TournamentSelection.getBest(population, instance);
     Solution father = population.get(selection.a);
     Solution mother = population.get(selection.b);
-
-    // final int crossoverChoice = 1;
 
     if (crossoverChoice == 0) {
       return onePointCO(father, mother, instance, maxMakespan);
@@ -187,8 +177,8 @@ public class Solver {
    * @return child created by crossover
    */
   private static Solution onePointCO(Solution father, Solution mother, Instance instance, int maxMakespan) {
-    int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
-    int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
+    int[] fatherActivityList = transformSolutionIntoActivityList(father);
+    int[] motherActivityList = transformSolutionIntoActivityList(mother);
 
     Random rand = App.getRandom();
     int crossoverPoint = rand.nextInt(instance.n());
@@ -211,8 +201,8 @@ public class Solver {
   }
 
   private static Solution twoPointCO(Solution father, Solution mother, Instance instance, int maxMakespan) {
-    int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
-    int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
+    int[] fatherActivityList = transformSolutionIntoActivityList(father);
+    int[] motherActivityList = transformSolutionIntoActivityList(mother);
 
     Random rand = App.getRandom();
     int firstPoint = rand.nextInt(instance.n() - 1);
@@ -288,8 +278,8 @@ public class Solver {
   }
 
   private static Solution uniformCO(Solution father, Solution mother, Instance instance, int maxMakespan) {
-    int[] fatherActivityList = transformSolutionIntoActivityList(father, maxMakespan);
-    int[] motherActivityList = transformSolutionIntoActivityList(mother, maxMakespan);
+    int[] fatherActivityList = transformSolutionIntoActivityList(father);
+    int[] motherActivityList = transformSolutionIntoActivityList(mother);
 
     Random rand = App.getRandom();
     var child = new ArrayListEx<Integer>(instance.n());

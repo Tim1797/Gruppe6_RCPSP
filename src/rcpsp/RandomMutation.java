@@ -11,7 +11,7 @@ public class RandomMutation {
       return solution;
     }
 
-    int[] solActivityList = Solver.transformSolutionIntoActivityList(solution, maxMakespan);
+    int[] solActivityList = Solver.transformSolutionIntoActivityList(solution);
     var copy = new ArrayListEx<Integer>(solActivityList.length);
     for (int i = 0; i < solActivityList.length; ++i) {
       copy.add(solActivityList[i]);
